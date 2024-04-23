@@ -19,6 +19,8 @@ class MyStrategy(Strategy):
     def position_sizing(self):
         current_price = self.get_last_price(BTC_ASSET)
         current_cash = self.get_cash()
+        if current_cash < 0.0:
+            raise ValueError("NO CASH")
         quantity = current_cash // current_price
         return quantity
 
@@ -29,7 +31,7 @@ class MyStrategy(Strategy):
         return len(open_orders)
 
     def on_trading_iteration(self):
-        print(f"Timezone of the dataset: {self.timezone}")
+        print(f"Timezone of the strategy: {self.timezone}")
         if self.first_iteration:
             pass
 #            last_price = self.get_last_price(BTC_ASSET)
@@ -37,7 +39,12 @@ class MyStrategy(Strategy):
 #            order = self.create_order(asset=BTC_ASSET, quantity=quantity_to_buy, side="buy", quote=USDT_ASSET)
 #            self.submit_order(order)
 #            print("order submitted")
-        self.set_parameters({"name":"Harami", "stop":"0.01", "limit":"0.015"})
+        stop_quote = 0.001
+        limit_quote = 0.0015
+        self.set_parameters({"name":"Harami-with symmetrical exit",
+                             "asset" : "BTCUSDT",
+                             "stop": stop_quote, "limit": limit_quote,
+                             "cash":"symmetrical range"})
         parameters = self.get_parameters()
         print(f"parameters: {parameters}")
         all_orders = self.get_orders()
@@ -51,8 +58,6 @@ class MyStrategy(Strategy):
                 first = df_two_last_prices[:1]
                 second = df_two_last_prices[-1:]
                 current_price = self.get_last_price(BTC_ASSET)
-                print(f"first {first['close'].tolist()}")
-                print(f"second {second['close'].tolist()}")
 
                 if second['close'].tolist()[0] < first['open'].tolist()[0] and \
                    second['open'].tolist()[0]> first['close'].tolist()[0] and \
@@ -61,6 +66,7 @@ class MyStrategy(Strategy):
                    second['open'].tolist()[0] < second['close'].tolist()[0] and \
                    first['open'].tolist()[0] > first['close'].tolist()[0]:
 
+                    limit = second['high'].tolist()[0] + (second['high'].tolist()[0] - second['low'].tolist()[0])
                     quantity = self.position_sizing()
                     order = self.create_order(asset=BTC_ASSET, quantity=quantity, side="buy")
                     self.submit_order(order)
@@ -68,24 +74,32 @@ class MyStrategy(Strategy):
                     order_reward = self.create_order(asset=BTC_ASSET,
                                                      quantity=quantity,
                                                      side="sell",
-                                                     limit_price=current_price + current_price*0.15)
+                                                     limit_price=limit)
                     self.submit_order(order_reward)
                     #stop loss
                     order_stop_loss = self.create_order(asset=BTC_ASSET,
                                                         quantity=quantity,
                                                         side="sell",
-                                                        stop_price=current_price - current_price*0.01,
-                                                        limit_price=current_price - current_price*0.015
+                                                        stop_price=current_price - current_price*stop_quote,
+                                                        limit_price=current_price - current_price*limit_quote
                                                         )
                     self.submit_order(order_stop_loss)
                     print("order submitted")
+        current_cash = self.get_cash()
+        print(f"Current cash: {current_cash}")
+        current_portfolio_value = self.get_portfolio_value()
+        print(f"Current portfolio value: {current_portfolio_value}")
+        if current_cash < 0:
+            self.log_message(f"current cash below zero {current_cash}", color="red")
+
 
 
 
 # Read the data from the CSV file (in this example you must have a file named "AAPL.csv"
 # in a folder named "data" in the same directory as this script)
 #df = pd.read_csv("./datasets/BTCUSDT_1m_202201_202303.csv")
-df = pd.read_csv("./datasets/BTCUSDT_1m_202301_202403.csv")
+#df = pd.read_csv("./datasets/BTCUSDT_1m_202303_202403.csv")
+df = pd.read_csv("./datasets/BTCUSDT_1m_2024_03_01_2024_04_01.csv")
 
 pandas_data = {}
 pandas_data[BTC_ASSET] = Data(BTC_ASSET, df,
