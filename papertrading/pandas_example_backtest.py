@@ -6,7 +6,9 @@ from lumibot.entities import Asset, Data
 from lumibot.strategies import Strategy
 from lumibot.traders import Trader
 
-BTC_ASSET = Asset(symbol="BTC", asset_type=Asset.AssetType.CRYPTO)
+import signals
+
+BTC_ASSET = Asset(symbol="SOL", asset_type=Asset.AssetType.CRYPTO)
 USDT_ASSET = Asset(symbol="USDT", asset_type=Asset.AssetType.CRYPTO)
 
 
@@ -32,74 +34,77 @@ class MyStrategy(Strategy):
 
     def on_trading_iteration(self):
         print(f"Timezone of the strategy: {self.timezone}")
+        stop_quote = 0.01
+        limit_quote = 0.015
+        cash = 0.05
         if self.first_iteration:
-            pass
-#            last_price = self.get_last_price(BTC_ASSET)
-#            quantity_to_buy = self.get_cash() // last_price
-#            order = self.create_order(asset=BTC_ASSET, quantity=quantity_to_buy, side="buy", quote=USDT_ASSET)
-#            self.submit_order(order)
-#            print("order submitted")
-        stop_quote = 0.001
-        limit_quote = 0.0015
-        self.set_parameters({"name":"Harami-with symmetrical exit",
-                             "asset" : "BTCUSDT",
+            self.set_parameters({"name":"Harami",
+                             "asset" : "SOLUSDT",
                              "stop": stop_quote, "limit": limit_quote,
-                             "cash":"symmetrical range"})
-        parameters = self.get_parameters()
-        print(f"parameters: {parameters}")
-        all_orders = self.get_orders()
-        open_orders_count = self.count_open_orders(all_orders)
-        self.log_message(f"Open orders count: {open_orders_count}")
-        if open_orders_count <= 1:
-            self.cancel_open_orders()
-            las_two_prices_bars = self.get_historical_prices(BTC_ASSET, 2, timestep='minute')
-            if las_two_prices_bars and len(las_two_prices_bars.df) >= 2:
-                df_two_last_prices = las_two_prices_bars.df
-                first = df_two_last_prices[:1]
-                second = df_two_last_prices[-1:]
-                current_price = self.get_last_price(BTC_ASSET)
+                             "cash":cash,
+                             "rounding": False,
+                             "one_order": True})
 
-                if second['close'].tolist()[0] < first['open'].tolist()[0] and \
-                   second['open'].tolist()[0]> first['close'].tolist()[0] and \
-                   second['high'].tolist()[0] < first['high'].tolist()[0] and \
-                   second['low'].tolist()[0] > first['low'].tolist()[0] and \
-                   second['open'].tolist()[0] < second['close'].tolist()[0] and \
-                   first['open'].tolist()[0] > first['close'].tolist()[0]:
+            quantity_to_buy = self.position_sizing()
+            order = self.create_order(asset=BTC_ASSET, quantity=quantity_to_buy, side="buy", quote=USDT_ASSET)
+            self.submit_order(order)
+            print("order submitted")
 
-                    limit = second['high'].tolist()[0] + (second['high'].tolist()[0] - second['low'].tolist()[0])
-                    quantity = self.position_sizing()
-                    order = self.create_order(asset=BTC_ASSET, quantity=quantity, side="buy")
-                    self.submit_order(order)
-                    #cash reward
-                    order_reward = self.create_order(asset=BTC_ASSET,
-                                                     quantity=quantity,
-                                                     side="sell",
-                                                     limit_price=limit)
-                    self.submit_order(order_reward)
-                    #stop loss
-                    order_stop_loss = self.create_order(asset=BTC_ASSET,
-                                                        quantity=quantity,
-                                                        side="sell",
-                                                        stop_price=current_price - current_price*stop_quote,
-                                                        limit_price=current_price - current_price*limit_quote
-                                                        )
-                    self.submit_order(order_stop_loss)
-                    print("order submitted")
-        current_cash = self.get_cash()
-        print(f"Current cash: {current_cash}")
-        current_portfolio_value = self.get_portfolio_value()
-        print(f"Current portfolio value: {current_portfolio_value}")
-        if current_cash < 0:
-            self.log_message(f"current cash below zero {current_cash}", color="red")
-
+#        parameters = self.get_parameters()
+#        print(f"parameters: {parameters}")
+#        all_orders = self.get_orders()
+#        open_orders_count = self.count_open_orders(all_orders)
+#        self.log_message(f"Open orders count: {open_orders_count}")
+#        if open_orders_count <= 1:
+#            self.cancel_open_orders()
+#            las_prices_bars = self.get_historical_prices(BTC_ASSET, 4, timestep='minute')
+#            if las_prices_bars and len(las_prices_bars.df) >= 4:
+#                df_last_prices = las_prices_bars.df
+#                first = df_last_prices.iloc[0]
+#                print(first)
+#                second = df_last_prices.iloc[1]
+#                print(second)
+#                third = df_last_prices.iloc[2]
+#                print(third)
+#                current_price = self.get_last_price(BTC_ASSET)
+#                is_doppelganger = signals.is_harami(
+#                    first=first,
+#                    second=second,
+#                )
+#                if is_doppelganger:
+#                    quantity = self.position_sizing()
+#                    order = self.create_order(asset=BTC_ASSET, quantity=quantity, side="buy")
+#                    self.submit_order(order)
+#                    #cash reward
+#                    order_reward = self.create_order(asset=BTC_ASSET,
+#                                                     quantity=quantity,
+#                                                     side="sell",
+#                                                     limit_price=current_price + current_price*cash)
+#                    self.submit_order(order_reward)
+#                    #stop loss
+#                    order_stop_loss = self.create_order(asset=BTC_ASSET,
+#                                                        quantity=quantity,
+#                                                        side="sell",
+#                                                        stop_price=current_price - current_price*stop_quote,
+#                                                        limit_price=current_price - current_price*limit_quote
+#                                                        )
+#                    self.submit_order(order_stop_loss)
+#                    print("order submitted")
+#        current_cash = self.get_cash()
+#        print(f"Current cash: {current_cash}")
+#        current_portfolio_value = self.get_portfolio_value()
+#        print(f"Current portfolio value: {current_portfolio_value}")
+#        if current_cash < 0:
+#            self.log_message(f"current cash below zero {current_cash}", color="red")
+#
 
 
 
 # Read the data from the CSV file (in this example you must have a file named "AAPL.csv"
 # in a folder named "data" in the same directory as this script)
 #df = pd.read_csv("./datasets/BTCUSDT_1m_202201_202303.csv")
-#df = pd.read_csv("./datasets/BTCUSDT_1m_202303_202403.csv")
-df = pd.read_csv("./datasets/BTCUSDT_1m_2024_03_01_2024_04_01.csv")
+df = pd.read_csv("./datasets/BTCUSDT_1m_202303_202403.csv")
+df = pd.read_csv("./datasets/SOLUSDT_1m_2023_01_01_2024_04_01.csv")
 
 pandas_data = {}
 pandas_data[BTC_ASSET] = Data(BTC_ASSET, df,
